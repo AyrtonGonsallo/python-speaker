@@ -1,7 +1,12 @@
 import tkinter as tk
+from time import sleep
 from tkinter import ttk
+from tkinter.font import Font
 from tkinter.scrolledtext import ScrolledText
+from tkinter.ttk import Style
+
 import main
+from textes import Textes
 
 
 class App(ttk.Frame):
@@ -14,6 +19,8 @@ class App(ttk.Frame):
             self.rowconfigure(index=index, weight=1)
 
         self.var_5 = tk.DoubleVar(value=75.0)
+        self.option_files_list = ["Pdf", "Txt"]
+        self.filetype = tk.StringVar(value=self.option_files_list[0])
 
         # Create widgets :)
         self.setup_widgets()
@@ -130,7 +137,7 @@ class App(ttk.Frame):
             texte = self.textfield2.get("0.0", tk.END)
             genre = self.genre2.get()
             vitesse = self.readonly_combo2.get()
-            res = main.parlerFromPdf(texte, genre, vitesse)
+            res = main.parlerFromFile(texte, genre, vitesse)
             self.listbox.insert(tk.END, res)
             return 0
 
@@ -138,13 +145,28 @@ class App(ttk.Frame):
             texte = self.textfield2.get("0.0", tk.END)
             genre = self.genre2.get()
             vitesse = self.readonly_combo2.get()
-            main.exporterFromPdf(texte, genre, vitesse)
+            main.exporterFromFile(texte, genre, vitesse)
             return 0
 
         def importerD():
-            self.textfield2.delete(1.0, tk.END)
-            resultats2 = main.importer()
-            self.textfield2.insert(tk.END, resultats2[1])
+            filetype = self.filetype.get()
+
+            if filetype == "Pdf":
+                page = self.spinbox.get()
+                try:
+                    int(page) > 0
+                except Exception as e:
+                    self.listbox.insert(tk.END, "Techniquement: " + str(e))
+                    self.listbox.insert(tk.END, "Simplement: Vous avez oublié le numero de page")
+                    return 0
+                self.textfield2.delete(1.0, tk.END)
+                resultats2 = main.importerPdf(int(page))
+                self.textfield2.insert(tk.END, resultats2[1])
+                self.listbox.insert(tk.END, "Nombre de pages: "+str(resultats2[2]))
+            elif filetype == 'Txt':
+                self.textfield2.delete(1.0, tk.END)
+                resultats2 = main.importerTxt()
+                self.textfield2.insert(tk.END, resultats2[1])
             if resultats2[1] != "erreur de lecture" and resultats2[1] != "fichier non trouvé":
                 self.listbox.insert(tk.END, "Fichier: " + resultats2[0] + " importé !")
 
@@ -160,6 +182,21 @@ class App(ttk.Frame):
             font=("-size", 15, "-weight", "bold"),
         )
         self.label2.grid(row=0, column=0, pady=10, columnspan=2)
+        self.radio_frame3 = ttk.LabelFrame(self.tab_3, text="Options", padding=(2, 1))
+        self.radio_frame3.grid(row=1, column=2, padx=(2, 1), pady=1, sticky="nsew")
+
+        # Radiobuttons
+        self.radio_1 = ttk.Radiobutton(
+            self.radio_frame3, text="Pdf", variable=self.filetype, value="Pdf"
+        )
+        self.radio_1.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        self.radio_2 = ttk.Radiobutton(
+            self.radio_frame3, text="Txt", variable=self.filetype, value="Txt"
+        )
+        self.radio_2.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+        self.spinbox = ttk.Spinbox(self.radio_frame3, from_=0, to=1000, increment=1)
+        self.spinbox.insert(0, "Page n°")
+        self.spinbox.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
         # zone de texte
         self.textfield2 = ScrolledText(self.tab_3, wrap=tk.WORD, height=10)
         self.textfield2.grid(row=1, column=0, pady=10, columnspan=2)
@@ -209,6 +246,93 @@ class App(ttk.Frame):
             height=5,
         )
 
+        s = Style()
+        s.configure('My.TFrame', background='black')
+        self.tab_4 = ttk.Frame(self.notebook,style='My.TFrame')
+        self.notebook.add(self.tab_4, text="Dialogue")
+        self.label4 = ttk.Label(
+            self.tab_4,
+            text="Talk to me",
+            justify="center",
+            font=("-size", 15, "-weight", "bold"),
+            background="black"
+        )
+        myfont = Font(family="Times", size=25, weight="bold", underline=1)
+        self.label4.grid(row=0, column=0, pady=10, columnspan=1)
+        # zone de texte
+        self.textfield4 = ScrolledText(self.tab_4, background="black", font=("-size", 25, "-weight", "bold"),
+                                       wrap=tk.WORD, width=40, height=6)
+        self.textfield4.grid(row=1, column=0, pady=10, columnspan=3)
+        # importer
+        self.togglebutton4 = ttk.Button(self.tab_4, text="Parler", style="Accent.TButton", command=None)
+        self.togglebutton4.grid(row=2, column=0, padx=5, pady=10, sticky="nsew")
+        t = Textes()
+
+        def display_mot(mot):
+            # self.textfield4.configure(font=myfont)
+            self.textfield4.insert(tk.INSERT, mot)
+            # self.textfield4.tag_add('ru', index1='1.2')
+            # self.textfield4.tag_config('ru', underline=True, underlinefg='red')
+            # self.textfield4.configure(font=("-size", 25, "-weight", "bold"))
+            self.textfield4.insert(tk.INSERT, " ")
+
+        def addindex(str):
+            try:
+                self.textfield4.tag_add('ru', index1=str)  # , index2='1.4')
+            except Exception as e:
+                # print(e)
+                self.textfield4.tag_add('ru', index1=str.replace("0", ""))  # , index2='1.4')
+
+        def underline_words(texte):
+            positions = t.getWordsPositions(texte)
+            for (deb, fin) in positions:
+                # print("de "+str(deb)+" a "+str(fin))
+                i = deb
+                while i < fin:
+                    # print(i)
+                    addindex(str(format(i, '.2f')))
+                    i += 0.01
+                    i = round(i, 2)
+            self.textfield4.tag_config('ru', underline=True, underlinefg='red')
+
+        def display(texte):
+            # underline_words(texte)
+            test_string = texte.split(" ")
+            delta = 700
+            delay = 0
+            for i in range(len(test_string)):
+                try:
+                    s = test_string[i]
+                    update_text = lambda s=s: display_mot(s)
+                    self.tab_4.after(delay, update_text)
+                    delay += delta
+                except Exception as e:
+                    print(e)
+                    return 0
+            underline_words_callback = lambda texte=texte: underline_words(texte)
+            self.tab_4.after(delay + 400, underline_words_callback)
+            # print(delay+)
+
+        # activer
+        def init_dialogue():
+            try:
+                if "selected" in (self.switch4.state()):
+                    main.parlerFromTexte(t.getFirstSentence(), "Feminin", "rapide")
+                    phrase = "I WILL PROTECT YOU NOW!"
+                    display(phrase)
+                else:
+                    main.parlerFromTexte(t.getLastSentence(), "Feminin", "rapide")
+                    self.textfield4.delete(1.0, tk.END)
+            except Exception as e:
+                print(e)
+
+        s2 = Style()
+        s2.configure('Switch.TCheckbutton', background='black')
+        self.switch4 = ttk.Checkbutton(
+            self.tab_4, text="Activer le dialogue",style="Switch.TCheckbutton", command=init_dialogue
+        )
+        self.switch4.grid(row=0, column=1, padx=5, pady=10, sticky="nsew")
+
         def effacer():
             self.listbox.delete(0, tk.END)
 
@@ -225,14 +349,29 @@ class App(ttk.Frame):
         )
         self.accentbutton3.pack()
 
+        """frameCnt = 25
+        frames = [tk.PhotoImage(file='C://Users//Dell//PycharmProjects//Machine//samaritan.gif', format ='gif -index %i' % (i)) for i in range(frameCnt)]
+
+        def update(ind):
+
+            frame = frames[ind]
+            ind += 1
+            if ind == frameCnt:
+                ind = 0
+            label.configure(image=frame)
+            self.tab_4.after(100, update, ind)
+        label = tk.Label(self.tab_4)
+        label.grid(row=3, column=1, padx=5, pady=10, sticky="nsew")
+        self.tab_4.after(0, update, 0)"""
+
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("Ayrton´s Speaker")
-    root.iconbitmap("C:/Users/user/Videos/python/Speaker/speak.ico")
-    #  pyinstaller --onefile --icon "scrapping.ico" --noconsole gui.py
+    root.title("Machine")
+    root.iconbitmap("C:/Users/Dell/PycharmProjects/Machine/speak.ico")
+    #  pyinstaller --onefile --icon "speak.ico" --noconsole gui.py
     # Simply set the theme
-    root.tk.call("source", "azure.tcl")
+    root.tk.call("source", "C:/Users/Dell/PycharmProjects/Machine/azure.tcl")
     root.tk.call("set_theme", "dark")
 
     app = App(root)

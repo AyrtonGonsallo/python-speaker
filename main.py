@@ -1,7 +1,10 @@
+import codecs
 import os
+import re
 import sys
 import threading
 from time import sleep
+import PyPDF2
 from tkinter import filedialog as fd, messagebox
 import pyttsx3
 import datetime
@@ -9,14 +12,32 @@ from os.path import exists
 
 engine = pyttsx3.init("sapi5")
 voix = engine.getProperty('voices')
+sortedvoices = []
+sortedvoicesText = []
+
+
+def charger_voix():
+    resultats = []
+    for voice in voix:
+        if re.search("French", voice.name):
+            res = "Voice: %s" % voice.name + " - ID: %s" % voice.id + " - Languages: %s" % voice.languages + " - Gender: %s" % voice.gender + " - Age: %s" % voice.age + "\n"
+        if re.search("Julie", voice.name):
+            resultats.append((0, res, voice))
+        if re.search("Paul", voice.name):
+            resultats.append((2, res, voice))
+        if re.search("Hortense", voice.name):
+            resultats.append((1, res, voice))
+    for voice2 in sorted(resultats, key=lambda tup: tup[0]):
+        sortedvoicesText.append(voice2[1])
+        sortedvoices.append(voice2[2])
+    return 0
+
+
+charger_voix()
 
 
 def afficherVoix():
-    resultats = []
-    for voice in voix:
-        res = "Voice: %s" % voice.name + " - ID: %s" % voice.id + " - Languages: %s" % voice.languages + " - Gender: %s" % voice.gender + " - Age: %s" % voice.age + "\n"
-        resultats.append(res)
-    return resultats
+    return sortedvoicesText
 
 
 def parlerFromTexte(texte, genre, vitesse):
@@ -32,14 +53,17 @@ def parlerFromTexte(texte, genre, vitesse):
             engine.setProperty('rate', 180)
 
         if genre == "Masculin":
-            engine.setProperty('voice', voix[2].id)
+            engine.setProperty('voice', sortedvoices[2].id)
         elif genre == "Feminin":
-            engine.setProperty('voice', voix[0].id)
-
-        engine.say(texte)
-        engine.runAndWait()
+            engine.setProperty('voice', sortedvoices[0].id)
+        try:
+            engine.say(texte)
+            engine.runAndWait()
+        except Exception as e:
+            print(e)
 
     x = threading.Thread(target=tache)
+    x.setDaemon(True)
     x.start()
     return res
 
@@ -60,26 +84,30 @@ def exporterFromTexte(texte, genre, vitesse):
         messagebox.showinfo("Resultat", "Fichier mp3 exporté !")
 
     x = threading.Thread(target=tache)
+    x.setDaemon(True)
     x.start()
 
 
 contenu = ""
 
 
-def importer():
+def importerPdf(page):
     res = []
     filename = fd.askopenfilename(
         title='Open a folder',
+        filetypes=[('PDF files', '*.pdf')],
         initialdir='/')
     res.append(filename)
 
     def tache():
         global contenu
         try:
-            f = open(filename,'r', encoding=sys.getdefaultencoding())
-            contenu = f.read()
-            texte=contenu
+            f = open(filename, 'rb')
+            pdfReader = PyPDF2.PdfFileReader(f)
+            pageObj = pdfReader.getPage(page)
+            texte = pageObj.extractText()
             res.append(texte)
+            res.append(pdfReader.numPages)
             f.close()
 
             messagebox.showinfo("Resultat", "Fichier pdf importé !\nContenu du fichier chargé et pret a etre lu.")
@@ -89,17 +117,49 @@ def importer():
             res.append(contenu)
 
     file_exists = exists(filename)
-    if(file_exists):
+    if (file_exists):
         x1 = threading.Thread(target=tache)
         x1.start()
-        while len(res)<2:
+        while len(res) < 2:
             sleep(1)
     else:
-        return ["","fichier non trouvé"]
+        return ["", "fichier non trouvé",0]
     return res
 
 
-def parlerFromPdf(texte, genre, vitesse):
+def importerTxt():
+    res = []
+    filename = fd.askopenfilename(
+        title='Open a folder',
+        filetypes=[('text files', 'txt')],
+        initialdir='/')
+    res.append(filename)
+
+    def tache():
+        global contenu
+        try:
+            fd = codecs.open(filename, 'r', encoding='utf-8')
+            texte = fd.read()
+            res.append(texte)
+
+            messagebox.showinfo("Resultat", "Fichier txt importé !\nContenu du fichier chargé et pret a etre lu.")
+        except Exception as ex:
+            print(ex)
+            contenu = "erreur de lecture"
+            res.append(contenu)
+
+    file_exists = exists(filename)
+    if (file_exists):
+        x1 = threading.Thread(target=tache)
+        x1.start()
+        while len(res) < 2:
+            sleep(1)
+    else:
+        return ["", "fichier non trouvé"]
+    return res
+
+
+def parlerFromFile(texte, genre, vitesse):
     volume = str(engine.getProperty('volume'))
     res = "pdf:  ---  genre: '" + genre + "'  ----  vitesse: '" + vitesse + "'  ----  volume: '" + volume + "'"
 
@@ -112,18 +172,19 @@ def parlerFromPdf(texte, genre, vitesse):
             engine.setProperty('rate', 180)
 
         if (genre == "Masculin"):
-            engine.setProperty('voice', voix[2].id)
+            engine.setProperty('voice', sortedvoices[2].id)
         elif (genre == "Feminin"):
-            engine.setProperty('voice', voix[0].id)
+            engine.setProperty('voice', sortedvoices[0].id)
         engine.say(texte)
         engine.runAndWait()
 
     x = threading.Thread(target=tache)
+    x.setDaemon(True)
     x.start()
     return res
 
 
-def exporterFromPdf(texte, genre, vitesse):
+def exporterFromFile(texte, genre, vitesse):
     path = fd.askdirectory(
         title='Open a folder',
         initialdir='/')
@@ -139,6 +200,7 @@ def exporterFromPdf(texte, genre, vitesse):
         messagebox.showinfo("Resultat", "Fichier mp3 exporté !")
 
     x = threading.Thread(target=tache)
+    x.setDaemon(True)
     x.start()
 
 
